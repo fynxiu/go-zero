@@ -42,6 +42,8 @@ var (
 	VarBoolIdea bool
 	// VarBoolVerbose describes whether verbose.
 	VarBoolVerbose bool
+	// VarBoolMultiService describes whether support multi service or not
+	VarBoolMultiService bool
 )
 
 // RPCNew is to generate rpc greet service, this greet service can speed
@@ -97,7 +99,7 @@ func RPCNew(_ *cobra.Command, args []string) error {
 		ctx.ProtocCmd += " --go_opt=" + strings.Join(goOptList, ",")
 	}
 
-	g := generator.NewGenerator(style, verbose)
+	g := generator.NewGenerator(style, verbose, false)
 	return g.Generate(&ctx)
 }
 

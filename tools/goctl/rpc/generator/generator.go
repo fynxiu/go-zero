@@ -2,30 +2,34 @@ package generator
 
 import (
 	"log"
+	"strings"
 
 	conf "github.com/zeromicro/go-zero/tools/goctl/config"
 	"github.com/zeromicro/go-zero/tools/goctl/env"
+	"github.com/zeromicro/go-zero/tools/goctl/rpc/parser"
 	"github.com/zeromicro/go-zero/tools/goctl/util/console"
 )
 
 // Generator defines the environment needs of rpc service generation
 type Generator struct {
-	log     console.Console
-	cfg     *conf.Config
-	verbose bool
+	log                 console.Console
+	cfg                 *conf.Config
+	multiServiceEnabled bool
+	verbose             bool
 }
 
 // NewGenerator returns an instance of Generator
-func NewGenerator(style string, verbose bool) *Generator {
+func NewGenerator(style string, verbose bool, multiServiceEnabled bool) *Generator {
 	cfg, err := conf.NewConfig(style)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	log := console.NewColorConsole(verbose)
 	return &Generator{
-		log:     log,
-		cfg:     cfg,
-		verbose: verbose,
+		log:                 log,
+		cfg:                 cfg,
+		verbose:             verbose,
+		multiServiceEnabled: multiServiceEnabled,
 	}
 }
 
@@ -33,4 +37,11 @@ func NewGenerator(style string, verbose bool) *Generator {
 // including go environment, protoc, whether protoc-gen-go is installed or not
 func (g *Generator) Prepare() error {
 	return env.Prepare(true, true, g.verbose)
+}
+
+func (g *Generator) getPackageName(service parser.Service) string {
+	if g.multiServiceEnabled {
+		return strings.ToLower(service.Name)
+	}
+	return "logic"
 }

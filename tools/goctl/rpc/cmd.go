@@ -71,6 +71,7 @@ func init() {
 		"directory must be consistent with the https://github.com/zeromicro/go-zero-template directory structure")
 	protocCmd.Flags().StringVar(&cli.VarStringBranch, "branch", "", "The branch of the remote repo, it "+
 		"does work with --remote")
+	protocCmd.Flags().BoolVar(&cli.VarBoolMultiService, "multi_service", false, "Enable multiple services")
 	protocCmd.Flags().BoolVarP(&cli.VarBoolVerbose, "verbose", "v", false, "Enable log output")
 	protocCmd.Flags().MarkHidden("go_out")
 	protocCmd.Flags().MarkHidden("go-grpc_out")

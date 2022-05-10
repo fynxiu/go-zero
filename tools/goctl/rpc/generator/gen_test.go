@@ -17,7 +17,7 @@ import (
 
 func TestRpcGenerate(t *testing.T) {
 	_ = Clean()
-	g := NewGenerator("gozero", true)
+	g := NewGenerator("gozero", true, false)
 	err := g.Prepare()
 	if err != nil {
 		logx.Error(err)

@@ -45,12 +45,12 @@ func (g *Generator) Generate(zctx *ZRpcContext) error {
 	}
 
 	p := parser.NewDefaultProtoParser()
-	proto, err := p.Parse(zctx.Src)
+	proto, err := p.Parse(zctx.Src, g.multiServiceEnabled)
 	if err != nil {
 		return err
 	}
 
-	dirCtx, err := mkdir(projectCtx, proto, g.cfg, zctx)
+	dirCtx, err := mkdir(projectCtx, proto, g, zctx)
 	if err != nil {
 		return err
 	}

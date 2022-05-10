@@ -25,7 +25,7 @@ func NewDefaultProtoParser() *DefaultProtoParser {
 
 // Parse provides to parse the proto file into a golang structure,
 // which is convenient for subsequent rpc generation and use
-func (p *DefaultProtoParser) Parse(src string) (Proto, error) {
+func (p *DefaultProtoParser) Parse(src string, multiServiceEnabled bool) (Proto, error) {
 	var ret Proto
 
 	abs, err := filepath.Abs(src)
@@ -80,18 +80,19 @@ func (p *DefaultProtoParser) Parse(src string) (Proto, error) {
 		return ret, errors.New("rpc service not found")
 	}
 
-	if len(serviceList) > 1 {
-		return ret, errors.New("only one service expected")
+	if !multiServiceEnabled && len(serviceList) > 1 {
+		return ret, errors.New("only one service expected. If you do want to use multiple services, please use flag --multi_service")
 	}
-	service := serviceList[0]
-	name := filepath.Base(abs)
 
-	for _, rpc := range service.RPC {
-		if strings.Contains(rpc.RequestType, ".") {
-			return ret, fmt.Errorf("line %v:%v, request type must defined in %s", rpc.Position.Line, rpc.Position.Column, name)
-		}
-		if strings.Contains(rpc.ReturnsType, ".") {
-			return ret, fmt.Errorf("line %v:%v, returns type must defined in %s", rpc.Position.Line, rpc.Position.Column, name)
+	name := filepath.Base(abs)
+	for _, service := range serviceList {
+		for _, rpc := range service.RPC {
+			if strings.Contains(rpc.RequestType, ".") {
+				return ret, fmt.Errorf("line %v:%v, request type must defined in %s", rpc.Position.Line, rpc.Position.Column, name)
+			}
+			if strings.Contains(rpc.ReturnsType, ".") {
+				return ret, fmt.Errorf("line %v:%v, returns type must defined in %s", rpc.Position.Line, rpc.Position.Column, name)
+			}
 		}
 	}
 	if len(ret.GoPackage) == 0 {
@@ -100,7 +101,8 @@ func (p *DefaultProtoParser) Parse(src string) (Proto, error) {
 	ret.PbPackage = GoSanitized(filepath.Base(ret.GoPackage))
 	ret.Src = abs
 	ret.Name = name
-	ret.Service = service
+	ret.Services = serviceList
+	ret.Service = serviceList[0]
 
 	return ret, nil
 }

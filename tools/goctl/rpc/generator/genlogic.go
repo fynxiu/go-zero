@@ -18,7 +18,7 @@ import (
 const logicFunctionTemplate = `{{if .hasComment}}{{.comment}}{{end}}
 func (l *{{.logicName}}) {{.method}} ({{if .hasReq}}in {{.request}}{{if .stream}},stream {{.streamBody}}{{end}}{{else}}stream {{.streamBody}}{{end}}) ({{if .hasReply}}{{.response}},{{end}} error) {
 	// todo: add your logic here and delete this line
-	
+
 	return {{if .hasReply}}&{{.responseType}}{},{{end}} nil
 }
 `
@@ -28,16 +28,34 @@ var logicTemplate string
 
 // GenLogic generates the logic file of the rpc service, which corresponds to the RPC definition items in proto.
 func (g *Generator) GenLogic(ctx DirContext, proto parser.Proto, cfg *conf.Config) error {
-	dir := ctx.GetLogic()
-	service := proto.Service.Service.Name
-	for _, rpc := range proto.Service.RPC {
+	if !g.multiServiceEnabled {
+		dir := ctx.GetLogic()
+		return g.genSingleServiceLogic(ctx, proto, cfg, proto.Service, dir)
+	}
+	for _, service := range proto.Services {
+		dir := ctx._GetLogic(service.Name)
+		if err := g.genSingleServiceLogic(ctx, proto, cfg, service, dir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (g *Generator) genSingleServiceLogic(
+	ctx DirContext,
+	proto parser.Proto,
+	cfg *conf.Config,
+	service parser.Service,
+	logicDir Dir,
+) error {
+	for _, rpc := range service.RPC {
 		logicFilename, err := format.FileNamingFormat(cfg.NamingFormat, rpc.Name+"_logic")
 		if err != nil {
 			return err
 		}
 
-		filename := filepath.Join(dir.Filename, logicFilename+".go")
-		functions, err := g.genLogicFunction(service, proto.PbPackage, rpc)
+		filename := filepath.Join(logicDir.Filename, logicFilename+".go")
+		functions, err := g.genLogicFunction(service.Name, proto.PbPackage, rpc)
 		if err != nil {
 			return err
 		}
@@ -50,9 +68,10 @@ func (g *Generator) GenLogic(ctx DirContext, proto parser.Proto, cfg *conf.Confi
 			return err
 		}
 		err = util.With("logic").GoFmt(true).Parse(text).SaveTo(map[string]interface{}{
-			"logicName": fmt.Sprintf("%sLogic", stringx.From(rpc.Name).ToCamel()),
-			"functions": functions,
-			"imports":   strings.Join(imports.KeysStr(), pathx.NL),
+			"packageName": g.getPackageName(service),
+			"logicName":   fmt.Sprintf("%sLogic", stringx.From(rpc.Name).ToCamel()),
+			"functions":   functions,
+			"imports":     strings.Join(imports.KeysStr(), pathx.NL),
 		}, filename, false)
 		if err != nil {
 			return err

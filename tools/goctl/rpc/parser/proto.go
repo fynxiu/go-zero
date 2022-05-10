@@ -9,5 +9,6 @@ type Proto struct {
 	GoPackage string
 	Import    []Import
 	Message   []Message
+	Services  []Service
 	Service   Service
 }

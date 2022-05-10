@@ -101,7 +101,7 @@ func ZRPC(cmd *cobra.Command, args []string) error {
 	ctx.IsGooglePlugin = isGooglePlugin
 	ctx.Output = zrpcOut
 	ctx.ProtocCmd = strings.Join(protocArgs, " ")
-	g := generator.NewGenerator(style, verbose)
+	g := generator.NewGenerator(style, verbose, VarBoolMultiService)
 	return g.Generate(&ctx)
 }
 

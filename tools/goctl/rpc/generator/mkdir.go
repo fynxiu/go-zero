@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	conf "github.com/zeromicro/go-zero/tools/goctl/config"
 	"github.com/zeromicro/go-zero/tools/goctl/rpc/parser"
 	"github.com/zeromicro/go-zero/tools/goctl/util/ctx"
 	"github.com/zeromicro/go-zero/tools/goctl/util/pathx"
@@ -22,16 +21,19 @@ const (
 	pb       = "pb"
 	protoGo  = "proto-go"
 	call     = "call"
+	calls    = "calls"
 )
 
 type (
 	// DirContext defines a rpc service directories context
 	DirContext interface {
 		GetCall() Dir
+		_GetCall(serviceName string) Dir
 		GetEtc() Dir
 		GetInternal() Dir
 		GetConfig() Dir
 		GetLogic() Dir
+		_GetLogic(serviceName string) Dir
 		GetServer() Dir
 		GetSvc() Dir
 		GetPb() Dir
@@ -50,13 +52,17 @@ type (
 
 	defaultDirContext struct {
 		inner       map[string]Dir
-		serviceName stringx.String
+		calls       map[string]Dir
+		logics      map[string]Dir
+		serviceName stringx.String // service name is goctl-specific
 		ctx         *ctx.ProjectContext
 	}
 )
 
-func mkdir(ctx *ctx.ProjectContext, proto parser.Proto, _ *conf.Config, c *ZRpcContext) (DirContext, error) {
+func mkdir(ctx *ctx.ProjectContext, proto parser.Proto, generator *Generator, zctx *ZRpcContext) (DirContext, error) {
 	inner := make(map[string]Dir)
+	calls := make(map[string]Dir)
+	logics := make(map[string]Dir)
 	etcDir := filepath.Join(ctx.WorkDir, "etc")
 	internalDir := filepath.Join(ctx.WorkDir, "internal")
 	configDir := filepath.Join(internalDir, "config")
@@ -65,9 +71,29 @@ func mkdir(ctx *ctx.ProjectContext, proto parser.Proto, _ *conf.Config, c *ZRpcC
 	svcDir := filepath.Join(internalDir, "svc")
 	pbDir := filepath.Join(ctx.WorkDir, proto.GoPackage)
 	protoGoDir := pbDir
-	if c != nil {
-		pbDir = c.ProtoGenGrpcDir
-		protoGoDir = c.ProtoGenGoDir
+	if zctx != nil {
+		pbDir = zctx.ProtoGenGrpcDir
+		protoGoDir = zctx.ProtoGenGoDir
+	}
+
+	for _, service := range proto.Services {
+		callDir := filepath.Join(ctx.WorkDir, strings.ToLower(stringx.From(service.Name).ToCamel()))
+		if strings.EqualFold(service.Name, proto.GoPackage) {
+			callDir = filepath.Join(ctx.WorkDir, strings.ToLower(stringx.From(service.Name+"_client").ToCamel()))
+		}
+
+		calls[service.Name] = Dir{
+			Filename: callDir,
+			Package:  filepath.ToSlash(filepath.Join(ctx.Path, strings.TrimPrefix(callDir, ctx.Dir))),
+			Base:     filepath.Base(callDir),
+		}
+
+		logicDir := filepath.Join(internalDir, "logic", strings.ToLower(service.Name))
+		logics[service.Name] = Dir{
+			Filename: logicDir,
+			Package:  filepath.ToSlash(filepath.Join(ctx.Path, strings.TrimPrefix(logicDir, ctx.Dir))),
+			Base:     filepath.Base(logicDir),
+		}
 	}
 
 	callDir := filepath.Join(ctx.WorkDir, strings.ToLower(stringx.From(proto.Service.Name).ToCamel()))
@@ -128,16 +154,25 @@ func mkdir(ctx *ctx.ProjectContext, proto parser.Proto, _ *conf.Config, c *ZRpcC
 		Package:  filepath.ToSlash(filepath.Join(ctx.Path, strings.TrimPrefix(callDir, ctx.Dir))),
 		Base:     filepath.Base(callDir),
 	}
-	for _, v := range inner {
-		err := pathx.MkdirIfNotExist(v.Filename)
-		if err != nil {
-			return nil, err
+
+	dirMaps := []map[string]Dir{inner}
+	if generator.multiServiceEnabled {
+		dirMaps = append(dirMaps, calls, logics)
+	}
+	for _, x := range dirMaps {
+		for _, v := range x {
+			err := pathx.MkdirIfNotExist(v.Filename)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	serviceName := strings.TrimSuffix(proto.Name, filepath.Ext(proto.Name))
 	return &defaultDirContext{
 		ctx:         ctx,
 		inner:       inner,
+		calls:       calls,
+		logics:      logics,
 		serviceName: stringx.From(strings.ReplaceAll(serviceName, "-", "")),
 	}, nil
 }
@@ -198,6 +233,14 @@ func (d *defaultDirContext) GetMain() Dir {
 
 func (d *defaultDirContext) GetServiceName() stringx.String {
 	return d.serviceName
+}
+
+func (d *defaultDirContext) _GetCall(serviceName string) Dir {
+	return d.calls[serviceName]
+}
+
+func (d *defaultDirContext) _GetLogic(serviceName string) Dir {
+	return d.logics[serviceName]
 }
 
 // Valid returns true if the directory is valid
